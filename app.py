@@ -1,70 +1,53 @@
 from flask import Flask, request, jsonify
-import os
-import json
+from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
 
-past_json = 'db.json'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///mensagens.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-def carregar_info():
-    if os.path.exists(past_json):
-        with open(past_json, 'r') as f:
-            return json.load(f).get("mensagens", [])
-    return []
+db = SQLAlchemy(app)
 
-def gerar_id(mensagens):
-    ids = []
-    for msg in mensagens:
-        try:
-            ids.append(int(msg['id']))
-        except (ValueError, TypeError):
-            pass
-    return max(ids, default=0) + 1
+class Mensagem(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    texto = db.Column(db.String(500), nullable=False)
 
-def salvar_info(mensagens):
-    with open(past_json, 'w') as f:
-        json.dump({"mensagens": mensagens}, f, indent=2)
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'texto': self.texto
+        }
+
+with app.app_context():
+    db.create_all()
 
 @app.route('/mensagens', methods=['GET'])
-def pegar_mensagens():
-    return jsonify(carregar_info())
-
-@app.route('/mensagens/<id>', methods=['GET'])
-def pegar_mensagem(id):
-    mensagens = carregar_info()
-    for msg in mensagens:
-        if msg['id'] == id:
-            return jsonify(msg)
-    return jsonify({"erro": "Mensagem não encontrada"}), 404
+def listar_mensagens():
+    mensagens = Mensagem.query.all()
+    return jsonify([msg.to_dict() for msg in mensagens])
 
 @app.route('/mensagens', methods=['POST'])
 def adicionar_mensagem():
-    nova_mensagem = request.json
-    mensagens = carregar_info()
+    data = request.json
+    nova = Mensagem(texto=data['conteudo'])
+    db.session.add(nova)
+    db.session.commit()
+    return jsonify(nova.to_dict()), 201
 
-    nova_id = gerar_id(mensagens)
-    nova_mensagem['id'] = nova_id
-
-    mensagens.append(nova_mensagem)
-    salvar_info(mensagens)
-    return jsonify(nova_mensagem), 201
-
-@app.route('/mensagens/<id>', methods=['PUT'])
-def atualizar_mensagem(id):
-    mensagens = carregar_info()
-    for i, msg in enumerate(mensagens):
-        if msg['id'] == int(id):
-            mensagens[i]['conteudo'] = request.json['conteudo']
-            salvar_info(mensagens)
-            return jsonify(mensagens[i])
-    return jsonify({"erro": "Mensagem não encontrada"}), 404
-
-@app.route('/mensagens/<id>', methods=['DELETE'])
+@app.route('/mensagens/<int:id>', methods=['DELETE'])
 def deletar_mensagem(id):
-    mensagens = carregar_info()
-    mensagens = [msg for msg in mensagens if str(msg['id']) != str(id)]
-    salvar_info(mensagens)
+    msg = Mensagem.query.get_or_404(id)
+    db.session.delete(msg)
+    db.session.commit()
     return '', 204
+
+@app.route('/mensagens/<int:id>', methods=['PUT'])
+def editar_mensagem(id):
+    msg = Mensagem.query.get_or_404(id)
+    data = request.json
+    msg.texto = data.get('conteudo', msg.texto)
+    db.session.commit()
+    return jsonify(msg.to_dict())
 
 if __name__ == '__main__':
     app.run(debug=True)
