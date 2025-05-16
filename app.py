@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.exc import SQLAlchemyError
 
 app = Flask(__name__)
 
@@ -28,18 +29,34 @@ def listar_mensagens():
 
 @app.route('/mensagens', methods=['POST'])
 def adicionar_mensagem():
-    data = request.json
-    nova = Mensagem(texto=data['conteudo'])
-    db.session.add(nova)
-    db.session.commit()
-    return jsonify(nova.to_dict()), 201
+    try:
+        data = request.json
+        nova = Mensagem(texto=data['conteudo'])
+        db.session.add(nova)
+        db.session.commit()
+        return jsonify(nova.to_dict()), 201
+    
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({'erro': 'Erro no banco de dados.', 'detalhes': str(e)}), 500
+
+    except Exception as e:
+        return jsonify({'erro': 'Erro inesperado.', 'detalhes': str(e)}), 500
 
 @app.route('/mensagens/<int:id>', methods=['DELETE'])
 def deletar_mensagem(id):
-    msg = Mensagem.query.get_or_404(id)
-    db.session.delete(msg)
-    db.session.commit()
-    return '', 204
+    try:
+        msg = Mensagem.query.get_or_404(id)
+        db.session.delete(msg)
+        db.session.commit()
+        return '', 204
+    
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        return jsonify({'erro': 'Erro ao acessar o banco de dados.', 'detalhes': str(e)}), 500
+
+    except Exception as e:
+        return jsonify({'erro': 'Erro inesperado.', 'detalhes': str(e)}), 500
 
 @app.route('/mensagens/<int:id>', methods=['PUT'])
 def editar_mensagem(id):
