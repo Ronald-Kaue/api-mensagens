@@ -1,7 +1,7 @@
-from flask import Blueprint, request
-from ..models.message import Message
-from .. import db
-from ..schemas.message_schema import MessageSchema
+from flask import Blueprint, request, jsonify
+from app.models.message import Message
+from app import db
+from app.schemas.message_schema import MessageSchema
 
 messages_bp = Blueprint('messages', __name__)
 message_schema = MessageSchema()

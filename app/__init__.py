@@ -9,6 +9,7 @@ from werkzeug.exceptions import HTTPException
 
 db = SQLAlchemy()
 ma = Marshmallow()
+migrate = Migrate()
 
 def create_app():
     app = Flask(__name__)
@@ -17,6 +18,7 @@ def create_app():
 
     db.init_app(app)
     ma.init_app(app)
+    migrate.init_app(app, db)
 
     from .routes.messages import messages_bp
     app.register_blueprint(messages_bp, url_prefix="/messages")
@@ -44,7 +46,6 @@ def create_app():
                 "message": str(error)
             }), 500
 
-    # Tratadores globais de erro (explicados na seção 5.6)
     register_error_handlers(app)
 
     return app
